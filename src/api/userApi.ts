@@ -1,105 +1,99 @@
-import { User } from '../types/fields';
+import { User } from "../types/fields";
 
-// API base URL - can be configured for different environments
-const API_URL = 'http://localhost:3000';
+const API_URL = "http://localhost:3000";
+
+// Detect environment
+const isDev = import.meta.env.MODE === "development";
+
+// LocalStorage helpers
+const getUsersFromStorage = (): User[] => {
+  const data = localStorage.getItem("users");
+  return data ? JSON.parse(data) : [];
+};
+
+const saveUsersToStorage = (users: User[]) => {
+  localStorage.setItem("users", JSON.stringify(users));
+};
 
 // Generate unique ID
-const generateId = () => `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+const generateId = () =>
+  `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 export const UserAPI = {
   // Get all users
   getAll: async (): Promise<User[]> => {
-    try {
-      const response = await fetch(`${API_URL}/users`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      throw new Error('Failed to fetch users');
+    if (isDev) {
+      const res = await fetch(`${API_URL}/users`);
+      return res.json();
     }
+    return getUsersFromStorage();
   },
 
-  // Get single user by ID
+  // Get single user
   getById: async (id: string): Promise<User | null> => {
-    try {
-      const response = await fetch(`${API_URL}/users/${id}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null;
-        }
-        throw new Error('Failed to fetch user');
-      }
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching user:', error);
-      throw new Error('Failed to fetch user');
+    if (isDev) {
+      const res = await fetch(`${API_URL}/users/${id}`);
+      if (!res.ok) return null;
+      return res.json();
     }
+
+    const users = getUsersFromStorage();
+    return users.find((u) => u.id === id) || null;
   },
 
-  // Create new user
-  create: async (userData: Omit<User, 'id'>): Promise<User> => {
-    try {
-      const newUser: User = {
-        id: generateId(),
-        ...userData,
-      };
+  // Create user
+  create: async (userData: Omit<User, "id">): Promise<User> => {
+    const newUser: User = {
+      id: generateId(),
+      ...userData,
+    };
 
-      const response = await fetch(`${API_URL}/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+    if (isDev) {
+      const res = await fetch(`${API_URL}/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newUser),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to create user');
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error creating user:', error);
-      throw new Error('Failed to create user');
+      return res.json();
     }
+
+    const users = getUsersFromStorage();
+    users.push(newUser);
+    saveUsersToStorage(users);
+    return newUser;
   },
 
-  // Update existing user
+  // Update user
   update: async (id: string, userData: Partial<User>): Promise<User> => {
-    try {
-      const response = await fetch(`${API_URL}/users/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+    if (isDev) {
+      const res = await fetch(`${API_URL}/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(userData),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update user');
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error updating user:', error);
-      throw new Error('Failed to update user');
+      return res.json();
     }
+
+    let users = getUsersFromStorage();
+    users = users.map((u) =>
+      u.id === id ? { ...u, ...userData } : u
+    );
+    saveUsersToStorage(users);
+
+    return users.find((u) => u.id === id)!;
   },
 
   // Delete user
   delete: async (id: string): Promise<void> => {
-    try {
-      const response = await fetch(`${API_URL}/users/${id}`, {
-        method: 'DELETE',
+    if (isDev) {
+      await fetch(`${API_URL}/users/${id}`, {
+        method: "DELETE",
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete user');
-      }
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      throw new Error('Failed to delete user');
+      return;
     }
+
+    let users = getUsersFromStorage();
+    users = users.filter((u) => u.id !== id);
+    saveUsersToStorage(users);
   },
 };
